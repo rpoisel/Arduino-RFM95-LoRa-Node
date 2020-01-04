@@ -1,7 +1,56 @@
 #include "datatypes.h"
+#include "fsm.h"
 
 #include <AES.h>
 #include <LoRa.h>
+
+using namespace LoRaNode;
+
+static void onReceiveCb(void* context, int size);
+
+class RequestNonce : public State
+{
+  public:
+  RequestNonce() : lastSend{millis()}
+  {
+  }
+  void execute(FSM* fsm);
+  void enter();
+
+  private:
+  unsigned long lastSend;
+};
+
+class AwaitNonce : public State
+{
+  public:
+  AwaitNonce() : encrypted{0}, lenReceived{0}, hasReceived{false}, enteredState{millis()}
+  {
+  }
+  void execute(FSM* fsm);
+  void enter();
+
+  private:
+#if 0
+  LoRaPayload payload;
+#else
+  uint8_t encrypted[LoRaPayload::size()];
+  size_t lenReceived;
+#endif
+  volatile bool hasReceived;
+  unsigned long enteredState;
+
+  friend void onReceiveCb(void* context, int size);
+};
+
+class SendSensorData : public State
+{
+  public:
+  void execute(FSM* fsm);
+  void enter();
+
+  LoRaNonce nonce;
+};
 
 constexpr int const LORA_SS = 10;
 constexpr int const LORA_RESET = 9;
@@ -11,12 +60,15 @@ constexpr uint8_t const AES_KEY[32] = {
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
 constexpr LoRaNodeID const NODE_ID = 0x0001;
 
-static uint32_t counter = 0;
-static AESTiny256 aes;
+static AES256 aes;
+static RequestNonce requestNonceState;
+static AwaitNonce awaitNonceState;
+static SendSensorData sendSensorDataState;
+static FSM fsm;
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial)
     ;
 
@@ -35,24 +87,130 @@ void setup()
   LoRa.setSignalBandwidth(125000);
   LoRa.disableCrc();
   LoRa.setCodingRate4(5);
+  LoRa.onReceive(onReceiveCb, &awaitNonceState);
+#if 0
+  fsm.nextState(&requestNonceState);
+#else
+  fsm.nextState(&awaitNonceState);
+#endif
 }
 
 void loop()
 {
-  LoRaPayload payload(NODE_ID);
-  payload.cmd = SensorData;
-  payload.sensordata.value = counter;
-  uint8_t encrypted[sizeof(payload)];
-  aes.encryptBlock(encrypted, reinterpret_cast<uint8_t const*>(&payload));
+  fsm.loop();
+}
 
-  Serial.print("Sending packet: ");
-  Serial.println(counter);
+void onReceiveCb(void* context, int size)
+{
+  if (size == 0)
+  {
+    return;
+  }
+  AwaitNonce* state = static_cast<AwaitNonce*>(context);
+  for (state->lenReceived = 0; state->lenReceived < static_cast<size_t>(size) &&
+                               state->lenReceived < sizeof(state->encrypted) && LoRa.available();
+       state->lenReceived++)
+  {
+    state->encrypted[state->lenReceived] = static_cast<byte>(LoRa.read());
+  }
+  while (LoRa.available())
+  {
+    LoRa.read();
+  }
+  state->hasReceived = true;
+}
 
-  LoRa.beginPacket();
-  LoRa.write(&encrypted[0], sizeof(encrypted));
-  LoRa.endPacket();
+void RequestNonce::enter()
+{
+  Serial.println("Entering RequestNonce.");
+  lastSend = millis();
+}
 
-  counter++;
+void RequestNonce::execute(FSM* fsm)
+{
+  if (millis() - lastSend > 1000)
+  {
+    LoRaPayload payload(NODE_ID);
+    payload.cmd = GetNonce;
 
-  delay(1000);
+    uint8_t encrypted[sizeof(payload)];
+    uint8_t cleartext[LoRaPayload::size()];
+    LoRaPayload::toByteStream(cleartext, sizeof(cleartext), payload);
+    aes.encryptBlock(encrypted, cleartext);
+
+    Serial.println("Sending GET_NONCE.");
+
+    LoRa.beginPacket();
+    LoRa.write(&encrypted[0], sizeof(encrypted));
+    LoRa.endPacket();
+
+    fsm->nextState(&awaitNonceState);
+  }
+}
+
+void AwaitNonce::enter()
+{
+  Serial.println("Entering AwaitNonce.");
+  enteredState = millis();
+}
+
+void AwaitNonce::execute(FSM* fsm)
+{
+  LoRaPayload payload;
+  uint8_t cleartext[LoRaPayload::size()];
+
+  hasReceived = false;
+  LoRa.receive();
+  if (!hasReceived)
+  {
+    if (millis() - enteredState > 5000)
+    {
+#if 0
+      fsm->nextState(&requestNonceState);
+#else
+      fsm->nextState(&awaitNonceState);
+#endif
+    }
+    return;
+  }
+  if (lenReceived != LoRaPayload::size())
+  {
+    Serial.print("Wrong number of bytes received: ");
+    Serial.println(lenReceived, DEC);
+#if 0
+    return;
+#endif
+  }
+  aes.decryptBlock(&cleartext[0], &encrypted[0]);
+  LoRaPayload::fromByteStream(cleartext, sizeof(cleartext), payload);
+  Serial.println("Message received.");
+  if (!payload.signatureOK())
+  {
+    Serial.println("Signature check failed.");
+#if 0
+    return;
+#endif
+  }
+  if (payload.cmd != PutNonce)
+  {
+    Serial.print("Invalid command. Got: ");
+    Serial.println(payload.cmd);
+#if 0
+    return;
+#endif
+  }
+  Serial.print("Received nonce: ");
+  Serial.println(payload.nonce);
+  sendSensorDataState.nonce = payload.nonce;
+  fsm->nextState(&sendSensorDataState);
+}
+
+void SendSensorData::enter()
+{
+  Serial.println("Entering SendSensorData.");
+}
+
+void SendSensorData::execute(FSM* fsm)
+{
+  fsm->nextState(&awaitNonceState);
 }
