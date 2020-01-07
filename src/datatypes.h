@@ -81,6 +81,11 @@ struct LoRaPayload
   LoRaPayload(LoRaNodeID nodeID) : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{Invalid}, data{0}
   {
   }
+  LoRaPayload(LoRaNodeID nodeID, LoRaNonce nonce)
+      : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{PutNonce}, nonce{nonce}
+  {
+  }
+
   bool signatureOK() const
   {
     return signature[0] == 'R' && signature[1] == 'P' && signature[2] == 'O';

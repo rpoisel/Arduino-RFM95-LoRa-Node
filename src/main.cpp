@@ -31,12 +31,8 @@ class AwaitNonce : public State
   void enter();
 
   private:
-#if 0
-  LoRaPayload payload;
-#else
   uint8_t encrypted[LoRaPayload::size()];
   size_t lenReceived;
-#endif
   volatile bool hasReceived;
   unsigned long enteredState;
 
@@ -72,7 +68,6 @@ void setup()
   while (!Serial)
     ;
 
-  Serial.println("LoRa Sender");
   aes.setKey(&AES_KEY[0], aes.keySize());
 
   if (!LoRa.begin(868E6))
@@ -88,11 +83,7 @@ void setup()
   LoRa.disableCrc();
   LoRa.setCodingRate4(5);
   LoRa.onReceive(onReceiveCb, &awaitNonceState);
-#if 0
   fsm.nextState(&requestNonceState);
-#else
-  fsm.nextState(&awaitNonceState);
-#endif
 }
 
 void loop()
@@ -108,12 +99,12 @@ void onReceiveCb(void* context, int size)
   }
   AwaitNonce* state = static_cast<AwaitNonce*>(context);
   for (state->lenReceived = 0; state->lenReceived < static_cast<size_t>(size) &&
-                               state->lenReceived < sizeof(state->encrypted) && LoRa.available();
+                               state->lenReceived < sizeof(state->encrypted);
        state->lenReceived++)
   {
     state->encrypted[state->lenReceived] = static_cast<byte>(LoRa.read());
   }
-  while (LoRa.available())
+  for (int cnt = state->lenReceived; cnt < size; cnt++)
   {
     LoRa.read();
   }
@@ -165,11 +156,7 @@ void AwaitNonce::execute(FSM* fsm)
   {
     if (millis() - enteredState > 5000)
     {
-#if 0
       fsm->nextState(&requestNonceState);
-#else
-      fsm->nextState(&awaitNonceState);
-#endif
     }
     return;
   }
@@ -177,9 +164,7 @@ void AwaitNonce::execute(FSM* fsm)
   {
     Serial.print("Wrong number of bytes received: ");
     Serial.println(lenReceived, DEC);
-#if 0
     return;
-#endif
   }
   aes.decryptBlock(&cleartext[0], &encrypted[0]);
   LoRaPayload::fromByteStream(cleartext, sizeof(cleartext), payload);
@@ -187,17 +172,13 @@ void AwaitNonce::execute(FSM* fsm)
   if (!payload.signatureOK())
   {
     Serial.println("Signature check failed.");
-#if 0
     return;
-#endif
   }
   if (payload.cmd != PutNonce)
   {
     Serial.print("Invalid command. Got: ");
     Serial.println(payload.cmd);
-#if 0
     return;
-#endif
   }
   Serial.print("Received nonce: ");
   Serial.println(payload.nonce);
@@ -212,5 +193,5 @@ void SendSensorData::enter()
 
 void SendSensorData::execute(FSM* fsm)
 {
-  fsm->nextState(&awaitNonceState);
+  fsm->nextState(&requestNonceState);
 }
