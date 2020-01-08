@@ -1,13 +1,7 @@
 #ifndef DATATYPES_H_
 #define DATATYPES_H_
 
-#if 1
 #include <Arduino.h>
-#else
-#include <cstddef>
-#include <cstdint>
-using byte = uint8_t;
-#endif
 
 constexpr int const LORA_BUF_LEN = 255; // see LoRa.cpp
 struct LoRaMessage
@@ -78,12 +72,27 @@ struct LoRaPayload
   LoRaPayload() : LoRaPayload(0)
   {
   }
-  LoRaPayload(LoRaNodeID nodeID) : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{Invalid}, data{0}
+  LoRaPayload(LoRaNodeID nodeID) : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{Invalid}, data{}
   {
   }
   LoRaPayload(LoRaNodeID nodeID, LoRaNonce nonce)
-      : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{PutNonce}, nonce{nonce}
+      : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{PutNonce}
   {
+    for (auto &elem : data)
+    {
+      elem = 0;
+    }
+    this->nonce = nonce;
+  }
+  LoRaPayload(LoRaNodeID nodeID, uint32_t value, LoRaNonce nonce)
+      : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{SensorData}
+  {
+    for (auto& elem: data)
+    {
+      elem = 0;
+    }
+    this->sensordata.value = value;
+    this->sensordata.nonce = nonce;
   }
 
   bool signatureOK() const

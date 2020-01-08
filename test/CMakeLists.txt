@@ -26,3 +26,9 @@ add_executable(scenario1
 )
 
 target_link_libraries(scenario1 PUBLIC application)
+
+add_executable(scenario2
+  scenario2.cpp
+)
+
+target_link_libraries(scenario2 PUBLIC framework)
