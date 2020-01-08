@@ -1,5 +1,6 @@
 #include "datatypes.h"
 #include "fsm.h"
+#include "util.h"
 
 #include <AES.h>
 #include <LoRa.h>
@@ -42,6 +43,9 @@ class AwaitNonce : public State
 class SendSensorData : public State
 {
   public:
+  SendSensorData(LoRaNonce const& nonce) : nonce(nonce)
+  {
+  }
   void execute(FSM* fsm);
   void enter();
 
@@ -57,9 +61,8 @@ constexpr uint8_t const AES_KEY[32] = {
 constexpr LoRaNodeID const NODE_ID = 0x0001;
 
 static AES256 aes;
-static RequestNonce requestNonceState;
-static AwaitNonce awaitNonceState;
-static SendSensorData sendSensorDataState;
+static uint8_t
+    stateBuffer[Util::static_max(sizeof(RequestNonce), sizeof(AwaitNonce), sizeof(SendSensorData))];
 static FSM fsm;
 
 void setup()
@@ -82,8 +85,8 @@ void setup()
   LoRa.setSignalBandwidth(125000);
   LoRa.disableCrc();
   LoRa.setCodingRate4(5);
-  LoRa.onReceive(onReceiveCb, &awaitNonceState);
-  fsm.nextState(&requestNonceState);
+
+  fsm.nextState(new (&stateBuffer[0]) RequestNonce());
 }
 
 void loop()
@@ -135,13 +138,14 @@ void RequestNonce::execute(FSM* fsm)
     LoRa.write(&encrypted[0], sizeof(encrypted));
     LoRa.endPacket();
 
-    fsm->nextState(&awaitNonceState);
+    fsm->nextState(new (&stateBuffer[0]) AwaitNonce());
   }
 }
 
 void AwaitNonce::enter()
 {
   Serial.println("Entering AwaitNonce.");
+  LoRa.onReceive(onReceiveCb, this);
   enteredState = millis();
 }
 
@@ -156,7 +160,7 @@ void AwaitNonce::execute(FSM* fsm)
   {
     if (millis() - enteredState > 5000)
     {
-      fsm->nextState(&requestNonceState);
+      fsm->nextState(new (&stateBuffer[0]) RequestNonce());
     }
     return;
   }
@@ -182,8 +186,7 @@ void AwaitNonce::execute(FSM* fsm)
   }
   Serial.print("Received nonce: ");
   Serial.println(payload.nonce);
-  sendSensorDataState.nonce = payload.nonce;
-  fsm->nextState(&sendSensorDataState);
+  fsm->nextState(new (&stateBuffer[0]) SendSensorData(payload.nonce));
 }
 
 void SendSensorData::enter()
@@ -193,5 +196,5 @@ void SendSensorData::enter()
 
 void SendSensorData::execute(FSM* fsm)
 {
-  fsm->nextState(&requestNonceState);
+  fsm->nextState(new (&stateBuffer[0]) RequestNonce());
 }

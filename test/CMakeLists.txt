@@ -11,6 +11,12 @@ target_include_directories(application PUBLIC
   ${CMAKE_SOURCE_DIR}/../src
 )
 
+target_compile_definitions(application PRIVATE
+  -DPIN_LORA_SS=1
+  -DPIN_LORA_RESET=2
+  -DPIN_LORA_DIO0=3
+)
+
 target_link_libraries(application PUBLIC
   framework
 )
