@@ -1,8 +1,13 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
+#if defined(ARDUINO)
+#include <stddef.h>
+#include <stdint.h>
+#else
 #include <cstddef>
 #include <cstdint>
+#endif
 
 #if defined(ARDUINO)
 void* operator new(size_t s, void* b)
