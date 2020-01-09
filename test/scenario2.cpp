@@ -1,39 +1,36 @@
 #include "../src/datatypes.h"
 
-#include <iostream>
+#define CATCH_CONFIG_MAIN
+#include <catch2/catch.hpp>
 
-int main(void)
+TEST_CASE("LoRaPayload serialization", "[single-file]")
 {
   uint8_t buf[LoRaPayload::size()];
 
   LoRaPayload payload(123, 456, 789);
   LoRaPayload::toByteStream(&buf[0], sizeof(buf), payload);
-  std::cout << (buf[0] == 'R') << std::endl;
-  std::cout << (buf[1] == 'P') << std::endl;
-  std::cout << (buf[2] == 'O') << std::endl;
-  std::cout << (buf[3] == 123) << std::endl;
-  std::cout << (buf[4] == 0) << std::endl;
-  std::cout << (buf[5] == SensorData) << std::endl;
-  std::cout << (buf[6] == 0xc8) << std::endl;
-  std::cout << (buf[7] == 0x01) << std::endl;
-  std::cout << (buf[8] == 0x00) << std::endl;
-  std::cout << (buf[9] == 0x00) << std::endl;
-  std::cout << (buf[10] == 0x15) << std::endl;
-  std::cout << (buf[11] == 0x03) << std::endl;
-  std::cout << (buf[12] == 0x00) << std::endl;
-  std::cout << (buf[13] == 0x00) << std::endl;
-  std::cout << (buf[14] == 0x00) << std::endl;
-  std::cout << (buf[15] == 0x00) << std::endl;
-
-  std::cout << "==" << std::endl;
+  REQUIRE(buf[0] == 'R');
+  REQUIRE(buf[1] == 'P');
+  REQUIRE(buf[2] == 'O');
+  REQUIRE(buf[3] == 123);
+  REQUIRE(buf[4] == 0);
+  REQUIRE(buf[5] == SensorData);
+  REQUIRE(buf[6] == 0xc8);
+  REQUIRE(buf[7] == 0x01);
+  REQUIRE(buf[8] == 0x00);
+  REQUIRE(buf[9] == 0x00);
+  REQUIRE(buf[10] == 0x15);
+  REQUIRE(buf[11] == 0x03);
+  REQUIRE(buf[12] == 0x00);
+  REQUIRE(buf[13] == 0x00);
+  REQUIRE(buf[14] == 0x00);
+  REQUIRE(buf[15] == 0x00);
 
   LoRaPayload restoredPayload;
   LoRaPayload::fromByteStream(&buf[0], sizeof(buf), restoredPayload);
-  std::cout << restoredPayload.signatureOK() << std::endl;
-  std::cout << (restoredPayload.nodeID == 123) << std::endl;
-  std::cout << (restoredPayload.cmd == SensorData) << std::endl;
-  std::cout << (restoredPayload.sensordata.value == 456) << std::endl;
-  std::cout << (restoredPayload.sensordata.nonce == 789) << std::endl;
-
-  return 0;
+  REQUIRE(restoredPayload.signatureOK() == true);
+  REQUIRE(restoredPayload.nodeID == 123);
+  REQUIRE(restoredPayload.cmd == SensorData);
+  REQUIRE(restoredPayload.sensordata.value == 456);
+  REQUIRE(restoredPayload.sensordata.nonce == 789);
 }
