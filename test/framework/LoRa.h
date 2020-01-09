@@ -11,7 +11,7 @@ using ReceiveCb = void (*)(void* context, int len);
 class LoRaClass
 {
   public:
-  LoRaClass() : pos{0}, cntRead{0}, cntWrite{0}
+  LoRaClass() : pos{0}, cntRead{0}, cntWrite{0}, invokeReceiveCb(true)
   {
     LoRaPayload::toByteStream(&cPayload[0], sizeof(cPayload), sPayload);
   }
@@ -44,7 +44,10 @@ class LoRaClass
   }
   void receive()
   {
-    this->receiveCb(context, sizeof(cPayload));
+    if (invokeReceiveCb)
+    {
+      this->receiveCb(context, sizeof(cPayload));
+    }
   }
   uint8_t read()
   {
@@ -73,6 +76,10 @@ class LoRaClass
   {
     return cntWrite;
   }
+  void setInvokeReceiveCb(bool invoke)
+  {
+    invokeReceiveCb = invoke;
+  }
 
   private:
   static LoRaPayload const sPayload;
@@ -86,6 +93,7 @@ class LoRaClass
   // testing data
   size_t cntRead;
   size_t cntWrite;
+  bool invokeReceiveCb;
 };
 
 extern LoRaClass LoRa;

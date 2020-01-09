@@ -117,12 +117,13 @@ void onReceiveCb(void* context, int size)
 
 void RequestNonce::enter()
 {
-  Serial.println("Entering RequestNonce.");
+  // Serial.println("Entering RequestNonce.");
   lastSend = millis();
 }
 
 void RequestNonce::execute(FSM* fsm)
 {
+  Serial.println("Executing RequestNonce.");
   if (millis() - lastSend > 1000)
   {
     LoRaPayload payload(NODE_ID);
@@ -145,7 +146,7 @@ void RequestNonce::execute(FSM* fsm)
 
 void AwaitNonce::enter()
 {
-  Serial.println("Entering AwaitNonce.");
+  // Serial.println("Entering AwaitNonce.");
   LoRa.onReceive(onReceiveCb, this);
   enteredState = millis();
 }
@@ -155,6 +156,7 @@ void AwaitNonce::execute(FSM* fsm)
   LoRaPayload payload;
   uint8_t cleartext[LoRaPayload::size()];
 
+  Serial.println("Executing AwaitNonce.");
   hasReceived = false;
   LoRa.receive();
   if (!hasReceived)
@@ -192,10 +194,11 @@ void AwaitNonce::execute(FSM* fsm)
 
 void SendSensorData::enter()
 {
-  Serial.println("Entering SendSensorData.");
+  // Serial.println("Entering SendSensorData.");
 }
 
 void SendSensorData::execute(FSM* fsm)
 {
+  Serial.println("Executing SendSensorData.");
   fsm->nextState(new (multiBuf.getNewBuf()) RequestNonce());
 }
