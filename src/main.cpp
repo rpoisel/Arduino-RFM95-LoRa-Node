@@ -6,6 +6,8 @@
 #include <LoRa.h>
 
 using namespace LoRaNode;
+using Util::MultiBuffer;
+using Util::static_max;
 
 static void onReceiveCb(void* context, int size);
 
@@ -61,9 +63,8 @@ constexpr uint8_t const AES_KEY[32] = {
 constexpr LoRaNodeID const NODE_ID = 0x0001;
 
 static AES256 aes;
-static uint8_t
-    stateBuffer[Util::static_max(sizeof(RequestNonce), sizeof(AwaitNonce), sizeof(SendSensorData))];
 static FSM fsm;
+static MultiBuffer<2, RequestNonce, AwaitNonce, SendSensorData> multiBuf;
 
 void setup()
 {
@@ -86,7 +87,7 @@ void setup()
   LoRa.disableCrc();
   LoRa.setCodingRate4(5);
 
-  fsm.nextState(new (&stateBuffer[0]) RequestNonce());
+  fsm.nextState(new (multiBuf.getNewBuf()) RequestNonce());
 }
 
 void loop()
@@ -138,7 +139,7 @@ void RequestNonce::execute(FSM* fsm)
     LoRa.write(&encrypted[0], sizeof(encrypted));
     LoRa.endPacket();
 
-    fsm->nextState(new (&stateBuffer[0]) AwaitNonce());
+    fsm->nextState(new (multiBuf.getNewBuf()) AwaitNonce());
   }
 }
 
@@ -160,7 +161,7 @@ void AwaitNonce::execute(FSM* fsm)
   {
     if (millis() - enteredState > 5000)
     {
-      fsm->nextState(new (&stateBuffer[0]) RequestNonce());
+      fsm->nextState(new (multiBuf.getNewBuf()) RequestNonce());
     }
     return;
   }
@@ -186,7 +187,7 @@ void AwaitNonce::execute(FSM* fsm)
   }
   Serial.print("Received nonce: ");
   Serial.println(payload.nonce);
-  fsm->nextState(new (&stateBuffer[0]) SendSensorData(payload.nonce));
+  fsm->nextState(new (multiBuf.getNewBuf()) SendSensorData(payload.nonce));
 }
 
 void SendSensorData::enter()
@@ -196,5 +197,5 @@ void SendSensorData::enter()
 
 void SendSensorData::execute(FSM* fsm)
 {
-  fsm->nextState(new (&stateBuffer[0]) RequestNonce());
+  fsm->nextState(new (multiBuf.getNewBuf()) RequestNonce());
 }

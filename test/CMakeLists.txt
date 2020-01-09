@@ -32,3 +32,7 @@ add_executable(scenario2
 )
 
 target_link_libraries(scenario2 PUBLIC framework)
+
+add_executable(scenario3
+  scenario3.cpp
+)
