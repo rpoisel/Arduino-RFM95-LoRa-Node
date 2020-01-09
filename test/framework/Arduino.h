@@ -15,6 +15,7 @@ void loop();
 
 using byte = uint8_t;
 
+void setMillis(unsigned long val);
 unsigned long millis();
 
 enum NumberFormat : uint8_t

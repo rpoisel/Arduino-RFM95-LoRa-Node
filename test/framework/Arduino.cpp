@@ -1,11 +1,15 @@
 #include <Arduino.h>
 
+static unsigned long millisValue;
+
+void setMillis(unsigned long val)
+{
+  millisValue = val;
+}
+
 unsigned long millis()
 {
-  static unsigned long curTime = 0;
-  auto retVal = curTime;
-  curTime += 1000;
-  return retVal;
+  return millisValue;
 }
 
 SerialClass Serial;
