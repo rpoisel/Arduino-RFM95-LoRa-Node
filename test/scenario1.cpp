@@ -6,61 +6,35 @@
 
 static constexpr size_t const NUM_STATES = 3;
 
+using FrameworkFunc = void (*)(void);
+
+static struct
+{
+  FrameworkFunc func;
+  FrameworkFunc pre;
+  unsigned long curTime;
+  size_t cntRead;
+  size_t cntWrite;
+} const TEST_INPUT[] = {
+    {&setup, []() {}, 0, 0, 0},
+    {&loop, []() {}, 1001, 0, 1},
+    {&loop, []() {}, 1001, 1, 1},
+    {&loop, []() {}, 1001, 1, 1},
+    {&loop, []() { LoRa.setInvokeReceiveCb(false); }, 2002, 1, 2},
+    {&loop, []() {}, 2002, 1, 2},
+    {&loop, []() { LoRa.setInvokeReceiveCb(true); }, 7007, 2, 2},
+    {&loop, []() {}, 7007, 2, 2},
+    {&loop, []() {}, 8008, 2, 3},
+};
+
 TEST_CASE("Default behavior of delayer functionality", "[single-file]")
 {
-  size_t cntRead = 0;
-  size_t cntWrite = 0;
-
-  setMillis(0);
-
-  setup();
-  REQUIRE(LoRa.getCntRead() == 0);
-  REQUIRE(LoRa.getCntWrite() == 0);
-
-  setMillis(1001);
-
-  loop();
-  cntWrite++;
-  REQUIRE(LoRa.getCntRead() == cntRead * LoRaPayload::size());
-  REQUIRE(LoRa.getCntWrite() == cntWrite);
-
-  loop();
-  cntRead++;
-  REQUIRE(LoRa.getCntRead() == cntRead * LoRaPayload::size());
-  REQUIRE(LoRa.getCntWrite() == cntWrite);
-
-  loop();
-  REQUIRE(LoRa.getCntRead() == cntRead * LoRaPayload::size());
-  REQUIRE(LoRa.getCntWrite() == cntWrite);
-
-  setMillis(2002);
-  LoRa.setInvokeReceiveCb(false);
-
-  loop();
-  cntWrite++;
-  REQUIRE(LoRa.getCntRead() == cntRead * LoRaPayload::size());
-  REQUIRE(LoRa.getCntWrite() == cntWrite);
-
-  loop();
-  REQUIRE(LoRa.getCntRead() == cntRead * LoRaPayload::size());
-  REQUIRE(LoRa.getCntWrite() == cntWrite);
-
-  setMillis(7007);
-  LoRa.setInvokeReceiveCb(true);
-
-  loop();
-  cntRead++;
-  REQUIRE(LoRa.getCntRead() == cntRead * LoRaPayload::size());
-  REQUIRE(LoRa.getCntWrite() == cntWrite);
-
-  loop();
-  REQUIRE(LoRa.getCntRead() == cntRead * LoRaPayload::size());
-  REQUIRE(LoRa.getCntWrite() == cntWrite);
-
-  setMillis(8008);
-
-  loop();
-  cntWrite++;
-  REQUIRE(LoRa.getCntRead() == cntRead * LoRaPayload::size());
-  REQUIRE(LoRa.getCntWrite() == cntWrite);
+  for (auto const& input : TEST_INPUT)
+  {
+    setMillis(input.curTime);
+    (*input.pre)();
+    (*input.func)();
+    REQUIRE(LoRa.getCntRead() == input.cntRead * LoRaPayload::size());
+    REQUIRE(LoRa.getCntWrite() == input.cntWrite);
+  }
 }
