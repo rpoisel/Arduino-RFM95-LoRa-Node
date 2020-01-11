@@ -9,6 +9,7 @@ add_subdirectory(framework)
 
 add_library(application STATIC
   ${CMAKE_SOURCE_DIR}/../src/main.cpp
+  ${CMAKE_SOURCE_DIR}/../src/data.cpp
 )
 
 target_include_directories(application PUBLIC
@@ -16,9 +17,9 @@ target_include_directories(application PUBLIC
 )
 
 target_compile_definitions(application PRIVATE
-  -DPIN_LORA_SS=1
-  -DPIN_LORA_RESET=2
-  -DPIN_LORA_DIO0=3
+  -DPIN_RFM95_CS=1
+  -DPIN_RFM95_RST=2
+  -DPIN_RFM95_INT=3
 )
 
 target_link_libraries(application PUBLIC

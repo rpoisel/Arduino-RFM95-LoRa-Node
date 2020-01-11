@@ -12,4 +12,16 @@ unsigned long millis()
   return millisValue;
 }
 
+void delay(unsigned long)
+{
+}
+
+void pinMode(uint8_t pin, uint8_t mode)
+{
+}
+
+void digitalWrite(uint8_t pin, uint8_t value)
+{
+}
+
 SerialClass Serial;

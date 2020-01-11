@@ -15,8 +15,16 @@ void loop();
 
 using byte = uint8_t;
 
+constexpr uint8_t const LOW = 0x00;
+constexpr uint8_t const HIGH = 0x01;
+constexpr uint8_t const INPUT = 0x00;
+constexpr uint8_t const OUTPUT = 0x01;
+
 void setMillis(unsigned long val);
 unsigned long millis();
+void delay(unsigned long);
+void pinMode(uint8_t pin, uint8_t mode);
+void digitalWrite(uint8_t pin, uint8_t value);
 
 enum NumberFormat : uint8_t
 {

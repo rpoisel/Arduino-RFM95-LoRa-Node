@@ -76,21 +76,13 @@ struct LoRaPayload
   {
   }
   LoRaPayload(LoRaNodeID nodeID, LoRaNonce nonce)
-      : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{PutNonce}
+      : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{PutNonce}, data{}
   {
-    for (auto &elem : data)
-    {
-      elem = 0;
-    }
     this->nonce = nonce;
   }
   LoRaPayload(LoRaNodeID nodeID, uint32_t value, LoRaNonce nonce)
-      : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{SensorData}
+      : signature{'R', 'P', 'O'}, nodeID{nodeID}, cmd{SensorData}, data{}
   {
-    for (auto& elem: data)
-    {
-      elem = 0;
-    }
     this->sensordata.value = value;
     this->sensordata.nonce = nonce;
   }

@@ -1,15 +1,13 @@
+#include "data.h"
 #include "datatypes.h"
 #include "fsm.h"
 #include "util.h"
 
 #include <AES.h>
-#include <LoRa.h>
 
 using namespace LoRaNode;
 using Util::MultiBuffer;
 using Util::static_max;
-
-static void onReceiveCb(void* context, int size);
 
 class RequestNonce : public State
 {
@@ -27,19 +25,14 @@ class RequestNonce : public State
 class AwaitNonce : public State
 {
   public:
-  AwaitNonce() : encrypted{0}, lenReceived{0}, hasReceived{false}, enteredState{millis()}
+  AwaitNonce() : enteredState{millis()}
   {
   }
   void execute(FSM* fsm);
   void enter();
 
   private:
-  uint8_t encrypted[LoRaPayload::size()];
-  size_t lenReceived;
-  volatile bool hasReceived;
   unsigned long enteredState;
-
-  friend void onReceiveCb(void* context, int size);
 };
 
 class SendSensorData : public State
@@ -54,9 +47,7 @@ class SendSensorData : public State
   LoRaNonce nonce;
 };
 
-constexpr int const LORA_SS = PIN_LORA_SS;
-constexpr int const LORA_RESET = PIN_LORA_RESET;
-constexpr int const LORA_DIO0 = PIN_LORA_DIO0;
+constexpr uint8_t const RFM95_RST = PIN_RFM95_RST;
 constexpr uint8_t const AES_KEY[32] = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
@@ -68,24 +59,41 @@ static MultiBuffer<2, RequestNonce, AwaitNonce, SendSensorData> multiBuf;
 
 void setup()
 {
+  pinMode(RFM95_RST, OUTPUT);
+  digitalWrite(RFM95_RST, HIGH);
+
   Serial.begin(115200);
   while (!Serial)
     ;
 
+  delay(100);
+  digitalWrite(RFM95_RST, LOW);
+  delay(10);
+  digitalWrite(RFM95_RST, HIGH);
+  delay(10);
+
   aes.setKey(&AES_KEY[0], aes.keySize());
 
-  if (!LoRa.begin(868E6))
+  while (!rf95.init())
   {
     Serial.println("Starting LoRa failed!");
+    Serial.println("Uncomment '#define SERIAL_DEBUG' in RH_RF95.cpp for detailed debug info");
     while (1)
       ;
   }
-  LoRa.setPins(LORA_SS, LORA_RESET, LORA_DIO0);
-  LoRa.setSpreadingFactor(7);
-  LoRa.setPreambleLength(8);
-  LoRa.setSignalBandwidth(125000);
-  LoRa.disableCrc();
-  LoRa.setCodingRate4(5);
+
+  if (!rf95.setFrequency(868.0))
+  {
+    Serial.println("Could not set frequency");
+    while (1)
+      ;
+  }
+  rf95.setTxPower(23, false);
+  rf95.setSpreadingFactor(7);
+  rf95.setPreambleLength(8);
+  rf95.setSignalBandwidth(125000);
+  rf95.setPayloadCRC(false);
+  rf95.setCodingRate4(5);
 
   fsm.nextState(new (multiBuf.getNewBuf()) RequestNonce());
 }
@@ -95,35 +103,16 @@ void loop()
   fsm.loop();
 }
 
-void onReceiveCb(void* context, int size)
-{
-  if (size == 0)
-  {
-    return;
-  }
-  AwaitNonce* state = static_cast<AwaitNonce*>(context);
-  for (state->lenReceived = 0; state->lenReceived < static_cast<size_t>(size) &&
-                               state->lenReceived < sizeof(state->encrypted);
-       state->lenReceived++)
-  {
-    state->encrypted[state->lenReceived] = static_cast<byte>(LoRa.read());
-  }
-  for (int cnt = state->lenReceived; cnt < size; cnt++)
-  {
-    LoRa.read();
-  }
-  state->hasReceived = true;
-}
-
 void RequestNonce::enter()
 {
-  // Serial.println("Entering RequestNonce.");
+  Serial.println("Entering RequestNonce.");
   lastSend = millis();
+  rf95.setModeTx();
 }
 
 void RequestNonce::execute(FSM* fsm)
 {
-  Serial.println("Executing RequestNonce.");
+  // Serial.println("Executing RequestNonce.");
   if (millis() - lastSend > 1000)
   {
     LoRaPayload payload(NODE_ID);
@@ -136,9 +125,9 @@ void RequestNonce::execute(FSM* fsm)
 
     Serial.println("Sending GET_NONCE.");
 
-    LoRa.beginPacket();
-    LoRa.write(&encrypted[0], sizeof(encrypted));
-    LoRa.endPacket();
+    rf95.send(&encrypted[0], LoRaPayload::size());
+    delay(10);
+    rf95.waitPacketSent();
 
     fsm->nextState(new (multiBuf.getNewBuf()) AwaitNonce());
   }
@@ -146,8 +135,8 @@ void RequestNonce::execute(FSM* fsm)
 
 void AwaitNonce::enter()
 {
-  // Serial.println("Entering AwaitNonce.");
-  LoRa.onReceive(onReceiveCb, this);
+  Serial.println("Entering AwaitNonce.");
+  rf95.setModeRx();
   enteredState = millis();
 }
 
@@ -155,11 +144,18 @@ void AwaitNonce::execute(FSM* fsm)
 {
   LoRaPayload payload;
   uint8_t cleartext[LoRaPayload::size()];
+  uint8_t encrypted[UINT8_MAX];
+  uint8_t lenReceived = sizeof(encrypted);
 
-  Serial.println("Executing AwaitNonce.");
-  hasReceived = false;
-  LoRa.receive();
-  if (!hasReceived)
+  // Serial.println("Executing AwaitNonce.");
+  if (rf95.waitAvailableTimeout(1000))
+  {
+    if (!rf95.recv(&encrypted[0], &lenReceived))
+    {
+      Serial.println("Recv failed ...");
+    }
+  }
+  else
   {
     if (millis() - enteredState > 5000)
     {
@@ -189,16 +185,18 @@ void AwaitNonce::execute(FSM* fsm)
   }
   Serial.print("Received nonce: ");
   Serial.println(payload.nonce);
+  delay(100);
   fsm->nextState(new (multiBuf.getNewBuf()) SendSensorData(payload.nonce));
 }
 
 void SendSensorData::enter()
 {
-  // Serial.println("Entering SendSensorData.");
+  Serial.println("Entering SendSensorData.");
+  rf95.setModeTx();
 }
 
 void SendSensorData::execute(FSM* fsm)
 {
-  Serial.println("Executing SendSensorData.");
+  // Serial.println("Executing SendSensorData.");
   fsm->nextState(new (multiBuf.getNewBuf()) RequestNonce());
 }
