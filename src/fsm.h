@@ -32,6 +32,8 @@ class NullState : public State
   NullState()
   {
   }
+  NullState& operator=(const NullState&) = delete;
+  NullState(const NullState&) = delete;
 };
 
 class FSM
