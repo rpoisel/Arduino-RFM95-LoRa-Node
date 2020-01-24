@@ -1,7 +1,7 @@
 #ifndef RH_RF95_H_
 #define RH_RF95_H_
 
-#include "../../src/datatypes.h"
+#include "../../../src/datatypes.h"
 
 #include <cstddef>
 #include <cstdint>

@@ -1,4 +1,4 @@
-#include "../src/util.h"
+#include "../../src/util.h"
 
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>

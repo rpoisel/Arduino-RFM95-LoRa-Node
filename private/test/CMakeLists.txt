@@ -8,12 +8,12 @@ add_subdirectory(lib/Catch2)
 add_subdirectory(framework)
 
 add_library(application STATIC
-  ${CMAKE_SOURCE_DIR}/../src/main.cpp
-  ${CMAKE_SOURCE_DIR}/../src/data.cpp
+  ${CMAKE_SOURCE_DIR}/../../src/main.cpp
+  ${CMAKE_SOURCE_DIR}/../../src/data.cpp
 )
 
 target_include_directories(application PUBLIC
-  ${CMAKE_SOURCE_DIR}/../src
+  ${CMAKE_SOURCE_DIR}/../../src
 )
 
 target_compile_definitions(application PRIVATE

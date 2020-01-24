@@ -47,7 +47,7 @@ matrix:
             - cmake-data
             - cmake
       script:
-        - cmake -G"Unix Makefiles" test
+        - cmake -G"Unix Makefiles" private/test
         - make VERBOSE=99
         - ctest --verbose --timeout 30
 

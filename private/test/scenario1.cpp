@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-#include "../src/data.h"
+#include "../../src/data.h"
 
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
